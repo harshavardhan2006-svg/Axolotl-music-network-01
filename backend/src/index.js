@@ -37,10 +37,14 @@ const io = new SocketIOServer(httpServer, {
 	cors: {
 		origin: [
 			"http://localhost:3000",
-			"https://axolotl-music-network-01.vercel.app"
-		],
+			"http://localhost:5173",
+			"https://axolotl-music-network-01.vercel.app",
+			"https://*.vercel.app",
+			process.env.FRONTEND_URL,
+		].filter(Boolean),
 		credentials: true,
 	},
+	transports: ['websocket', 'polling'],
 });
 initializeSocket(io);
 
@@ -68,10 +72,12 @@ app.use(securityHeaders);
 app.use(
 	cors({
 		origin: [
-			"http://localhost:3000", 
-			"http://localhost:3001",
-			"https://axolotl-music-network-01.vercel.app"
-		],
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"https://axolotl-music-network-01.vercel.app",
+			"https://*.vercel.app",
+			process.env.FRONTEND_URL,
+		].filter(Boolean),
 		credentials: true,
 	})
 );

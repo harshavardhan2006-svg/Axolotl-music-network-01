@@ -48,11 +48,13 @@ interface ChatStore {
 	setReplyTo: (message: Message | null) => void;
 }
 
-const baseURL = import.meta.env.MODE === "development" ? "http://localhost:5000" : "/";
+const baseURL = import.meta.env.VITE_SOCKET_URL ||
+	(import.meta.env.MODE === "development" ? "http://localhost:5000" : window.location.origin);
 
 const socket = io(baseURL, {
-	autoConnect: false, // only connect if user is authenticated
+	autoConnect: false,
 	withCredentials: true,
+	transports: ['websocket', 'polling'],
 });
 
 export const useChatStore = create<ChatStore>((set, get) => ({

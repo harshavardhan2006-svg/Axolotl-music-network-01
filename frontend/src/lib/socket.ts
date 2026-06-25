@@ -30,7 +30,8 @@ class SocketManager {
 
     this.userId = userId;
     console.log('[SocketManager] Creating new socket connection...');
-    this.socket = io('http://localhost:5000', {
+    const socketURL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.MODE === 'development' ? 'http://localhost:5000' : window.location.origin);
+    this.socket = io(socketURL, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
       timeout: 20000,
