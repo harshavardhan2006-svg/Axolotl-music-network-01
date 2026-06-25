@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import { useHallStore } from "@/stores/useHallStore";
@@ -64,38 +64,6 @@ const HallDetailPage = () => {
       setCurrentUserId(currentUserId);
     }
   }, [currentUserId, setCurrentUserId]);
-
-  const handlePlaybackSync = useCallback(
-    (data: any) => {
-      try {
-        console.log("Received playback sync:", data.action, data);
-
-        // Update hall state with new playback data
-        updateCurrentHall({
-          currentSong: data.song
-            ? {
-                songId: data.song,
-                startedAt: new Date(),
-                position: data.position || 0,
-              }
-            : undefined,
-          playbackState: {
-            isPlaying: data.playbackState?.isPlaying || false,
-            position: data.position || 0,
-            timestamp: data.timestamp || Date.now(),
-          },
-        });
-
-        // If user is synced, the AudioPlayer will handle the actual playback
-        if (isSyncEnabled) {
-          console.log("Hall playback sync:", data.action, data.song?.title);
-        }
-      } catch (error) {
-        console.error("Error handling playback sync:", error);
-      }
-    },
-    [isSyncEnabled, updateCurrentHall]
-  );
 
   // Effect to manage socket connection and hall joining
   useEffect(() => {
