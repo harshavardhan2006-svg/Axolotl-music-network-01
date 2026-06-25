@@ -57,7 +57,7 @@ const HallDetailPage = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
-  const { updateCurrentHall, setCurrentUserId } = useHallStore();
+  const { setCurrentUserId } = useHallStore();
 
   useEffect(() => {
     if (currentUserId) {
