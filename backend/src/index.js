@@ -144,6 +144,11 @@ app.use("/api/songs", songRoutes);
 app.use("/api/albums", albumRoutes);
 app.use("/api/stats", statRoutes);
 
+// Test route without database
+app.get("/api/test", (req, res) => {
+	res.json({ message: "API working without database" });
+});
+
 // Health check route
 app.get("/api/health", async (req, res) => {
 	try {
@@ -175,6 +180,9 @@ if (process.env.NODE_ENV === "production") {
 
 // error handler
 app.use((err, req, res, next) => {
+	if (res.headersSent) {
+		return next(err);
+	}
 	res.status(500).json({ message: process.env.NODE_ENV === "production" ? "Internal server error" : err.message });
 });
 

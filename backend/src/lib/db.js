@@ -2,10 +2,16 @@ import mongoose from "mongoose";
 
 export const connectDB = async () => {
 	try {
-		const conn = await mongoose.connect(process.env.MONGODB_URI);
+		const conn = await mongoose.connect(process.env.MONGODB_URI, {
+			serverSelectionTimeoutMS: 30000, // 30 seconds
+			connectTimeoutMS: 30000, // 30 seconds
+			socketTimeoutMS: 30000, // 30 seconds
+			bufferCommands: false, // Disable mongoose buffering
+		});
 		console.log(`Connected to MongoDB ${conn.connection.host}`);
+		return conn;
 	} catch (error) {
 		console.log("Failed to connect to MongoDB", error);
-		process.exit(1); // 1 is failure, 0 is success
+		throw error; // Don't exit process in serverless
 	}
 };
