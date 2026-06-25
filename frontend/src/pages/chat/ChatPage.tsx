@@ -46,9 +46,7 @@ const ChatPage = () => {
     }
   }, [messages]);
 
-  console.log({ messages });
-
-  return (
+return (
     <main className="h-full rounded-3xl glass flex flex-col overflow-hidden">
       <Topbar />
 

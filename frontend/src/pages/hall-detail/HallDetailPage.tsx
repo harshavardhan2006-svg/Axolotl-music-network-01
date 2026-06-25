@@ -143,11 +143,28 @@ const HallDetailPage = () => {
         useHallChatStore.getState().addMessage(message);
       });
 
-      // Listen for queue updates
-      socketManager.onQueueUpdate((data) => {
-        console.log("Queue update received:", data);
-        // Refresh hall data to get updated queue
-        fetchHall(hallId);
+      // Listen for queue updates - update state directly, no HTTP refetch
+      const socket = socketManager.getSocket();
+      socket?.on("hall:queue-update", (data: any) => {
+        const hall = useHallStore.getState().currentHall;
+        if (!hall) return;
+        if (data.action === "add" && data.song) {
+          useHallStore.getState().updateCurrentHall({
+            queue: [...hall.queue, data.song],
+            queueLength: data.queueLength,
+          });
+        } else if (data.action === "remove") {
+          const newQueue = hall.queue.filter((_, i) => i !== data.queueIndex);
+          useHallStore.getState().updateCurrentHall({
+            queue: newQueue,
+            queueLength: data.queueLength,
+          });
+        } else if (data.action === "next") {
+          useHallStore.getState().updateCurrentHall({
+            queue: hall.queue.slice(1),
+            queueLength: data.queueLength,
+          });
+        }
       });
 
       // Listen for hall online status updates
@@ -186,14 +203,7 @@ const HallDetailPage = () => {
         socket.off("hall_message_deleted");
       }
     };
-  }, [
-    hallId,
-    currentUserId,
-    fetchHall,
-    fetchMessages,
-    clearMessages,
-    handlePlaybackSync,
-  ]);
+  }, [hallId, currentUserId, fetchHall, fetchMessages, clearMessages]);
 
   useEffect(() => {
     const handleOpenPlayMusic = () => setShowPlayMusicDialog(true);

@@ -58,7 +58,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         tokenRef.current = null;
         updateApiToken(null);
       }
-    }, 15 * 1000); // Refresh every 15 seconds
+    }, 5 * 60 * 1000); // Refresh every 5 minutes
 
     // clean up
     return () => {

@@ -114,206 +114,185 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 	},
 
 	initSocket: (userId) => {
-		if (!get().isConnected) {
-			console.log('Initializing socket for userId:', userId);
-			socket.auth = { userId };
-			socket.connect();
+		socket.auth = { userId };
+		if (!socket.connected) socket.connect();
+		socket.emit("user_connected", userId);
 
-			socket.emit("user_connected", userId);
+		// Re-emit user_connected on every reconnect
+		socket.off("connect");
+		socket.on("connect", () => socket.emit("user_connected", userId));
 
-			// Fetch follow requests on init
-			get().fetchFollowRequests();
+		if (get().isConnected) return; // listeners already registered
 
-			socket.on("users_online", (users: string[]) => {
-				set({ onlineUsers: new Set(users) });
+		get().fetchFollowRequests();
+
+		socket.on("users_online", (users: string[]) => {
+			set({ onlineUsers: new Set(users) });
+		});
+
+		socket.on("activities", (activities: [string, string][]) => {
+			set({ userActivities: new Map(activities) });
+		});
+
+		socket.on("user_connected", (userId: string) => {
+			set((state) => ({
+				onlineUsers: new Set([...state.onlineUsers, userId]),
+			}));
+		});
+
+		socket.on("user_disconnected", (userId: string) => {
+			set((state) => {
+				const newOnlineUsers = new Set(state.onlineUsers);
+				newOnlineUsers.delete(userId);
+				return { onlineUsers: newOnlineUsers };
 			});
+		});
 
-			socket.on("activities", (activities: [string, string][]) => {
-				set({ userActivities: new Map(activities) });
-			});
-
-			socket.on("user_connected", (userId: string) => {
-				set((state) => ({
-					onlineUsers: new Set([...state.onlineUsers, userId]),
-				}));
-			});
-
-			socket.on("user_disconnected", (userId: string) => {
-				set((state) => {
-					const newOnlineUsers = new Set(state.onlineUsers);
-					newOnlineUsers.delete(userId);
-					return { onlineUsers: newOnlineUsers };
-				});
-			});
-
-			socket.on("receive_message", (message: Message) => {
-				set((state) => ({
-					messages: [...state.messages, message],
-					lastMessageTime: new Map(state.lastMessageTime).set(message.senderId, new Date(message.createdAt).getTime()),
-				}));
-
-				// Add notification for new message
-				const sender = get().users.find(u => u.clerkId === message.senderId);
-				if (sender) {
-					const notification: Notification = {
-						id: message._id,
-						senderId: message.senderId,
-						senderName: sender.fullName,
-						senderImageUrl: sender.imageUrl,
-						content: message.content,
-						timestamp: message.createdAt,
-						isRead: false,
-						type: 'message',
-					};
-
-					set((state) => ({
-						notifications: [notification, ...state.notifications],
-						unreadNotificationsCount: state.unreadNotificationsCount + 1,
-					}));
-				}
-			});
-
-			socket.on("message_unsent", ({ messageId }) => {
-				set((state) => ({
-					messages: state.messages.filter(msg => msg._id !== messageId)
-				}));
-			});
-
-			socket.on("message_sent", (message: Message) => {
-				set((state) => ({
-					messages: [...state.messages, message],
-					lastMessageTime: new Map(state.lastMessageTime).set(message.receiverId, new Date(message.createdAt).getTime()),
-				}));
-			});
-
-			socket.on("activity_updated", ({ userId, activity }) => {
-				set((state) => {
-					const newActivities = new Map(state.userActivities);
-					newActivities.set(userId, activity);
-					return { userActivities: newActivities };
-				});
-			});
-
-			socket.on("profile_updated", (updatedUser) => {
-				set((state) => ({
-					users: state.users.map((user) =>
-						user.clerkId === updatedUser.clerkId
-							? { ...user, fullName: updatedUser.fullName, imageUrl: updatedUser.imageUrl }
-							: user
-					),
-				}));
-			});
-
-			socket.on("follow_request", (data) => {
-				console.log('Received follow_request socket event:', data);
+		socket.on("receive_message", (message: Message) => {
+			set((state) => ({
+				messages: [...state.messages, message],
+				lastMessageTime: new Map(state.lastMessageTime).set(message.senderId, new Date(message.createdAt).getTime()),
+			}));
+			const sender = get().users.find(u => u.clerkId === message.senderId);
+			if (sender) {
 				const notification: Notification = {
-					id: `follow_${data.requesterId}_${Date.now()}`,
-					senderId: data.requesterId,
-					senderName: data.requesterName,
-					senderImageUrl: data.requesterImageUrl,
-					content: `${data.requesterName} sent you a follow request`,
-					timestamp: new Date().toISOString(),
+					id: message._id,
+					senderId: message.senderId,
+					senderName: sender.fullName,
+					senderImageUrl: sender.imageUrl,
+					content: message.content,
+					timestamp: message.createdAt,
 					isRead: false,
-					type: 'follow_request',
+					type: 'message',
 				};
-
-				console.log('Adding follow request notification:', notification);
 				set((state) => ({
 					notifications: [notification, ...state.notifications],
 					unreadNotificationsCount: state.unreadNotificationsCount + 1,
 				}));
+			}
+		});
 
-				// Refetch users to update follow status
-				get().fetchUsers();
+		socket.on("message_unsent", ({ messageId }) => {
+			set((state) => ({
+				messages: state.messages.filter(msg => msg._id !== messageId)
+			}));
+		});
+
+		socket.on("message_sent", (message: Message) => {
+			set((state) => ({
+				messages: [...state.messages, message],
+				lastMessageTime: new Map(state.lastMessageTime).set(message.receiverId, new Date(message.createdAt).getTime()),
+			}));
+		});
+
+		socket.on("activity_updated", ({ userId, activity }) => {
+			set((state) => {
+				const newActivities = new Map(state.userActivities);
+				newActivities.set(userId, activity);
+				return { userActivities: newActivities };
 			});
+		});
 
-			socket.on("follow_accepted", (data) => {
-				console.log('Received follow_accepted:', data);
-				const notification: Notification = {
-					id: `follow_accepted_${data.accepterId}_${Date.now()}`,
-					senderId: data.accepterId,
-					senderName: data.accepterName,
-					senderImageUrl: data.accepterImageUrl,
-					content: `${data.accepterName} accepted your follow request`,
-					timestamp: new Date().toISOString(),
-					isRead: false,
-					type: 'follow_accepted',
-				};
+		socket.on("profile_updated", (updatedUser) => {
+			set((state) => ({
+				users: state.users.map((user) =>
+					user.clerkId === updatedUser.clerkId
+						? { ...user, fullName: updatedUser.fullName, imageUrl: updatedUser.imageUrl }
+						: user
+				),
+			}));
+		});
 
-				set((state) => ({
-					notifications: [notification, ...state.notifications],
-					unreadNotificationsCount: state.unreadNotificationsCount + 1,
-				}));
+		socket.on("follow_request", (data) => {
+			const notification: Notification = {
+				id: `follow_${data.requesterId}_${Date.now()}`,
+				senderId: data.requesterId,
+				senderName: data.requesterName,
+				senderImageUrl: data.requesterImageUrl,
+				content: `${data.requesterName} sent you a follow request`,
+				timestamp: new Date().toISOString(),
+				isRead: false,
+				type: 'follow_request',
+			};
+			set((state) => ({
+				notifications: [notification, ...state.notifications],
+				unreadNotificationsCount: state.unreadNotificationsCount + 1,
+			}));
+			get().fetchUsers();
+		});
 
-				// Refetch users to update follow status
-				get().fetchUsers();
-			});
+		socket.on("follow_accepted", (data) => {
+			const notification: Notification = {
+				id: `follow_accepted_${data.accepterId}_${Date.now()}`,
+				senderId: data.accepterId,
+				senderName: data.accepterName,
+				senderImageUrl: data.accepterImageUrl,
+				content: `${data.accepterName} accepted your follow request`,
+				timestamp: new Date().toISOString(),
+				isRead: false,
+				type: 'follow_accepted',
+			};
+			set((state) => ({
+				notifications: [notification, ...state.notifications],
+				unreadNotificationsCount: state.unreadNotificationsCount + 1,
+			}));
+			get().fetchUsers();
+		});
 
-			socket.on("follow_rejected", (data) => {
-				console.log('Received follow_rejected:', data);
-				const notification: Notification = {
-					id: `follow_rejected_${data.rejecterId}_${Date.now()}`,
-					senderId: data.rejecterId,
-					senderName: data.rejecterName,
-					senderImageUrl: '',
-					content: `${data.rejecterName} rejected your follow request`,
-					timestamp: new Date().toISOString(),
-					isRead: false,
-					type: 'follow_rejected',
-				};
+		socket.on("follow_rejected", (data) => {
+			const notification: Notification = {
+				id: `follow_rejected_${data.rejecterId}_${Date.now()}`,
+				senderId: data.rejecterId,
+				senderName: data.rejecterName,
+				senderImageUrl: '',
+				content: `${data.rejecterName} rejected your follow request`,
+				timestamp: new Date().toISOString(),
+				isRead: false,
+				type: 'follow_rejected',
+			};
+			set((state) => ({
+				notifications: [notification, ...state.notifications],
+				unreadNotificationsCount: state.unreadNotificationsCount + 1,
+			}));
+			get().fetchUsers();
+		});
 
-				set((state) => ({
-					notifications: [notification, ...state.notifications],
-					unreadNotificationsCount: state.unreadNotificationsCount + 1,
-				}));
+		socket.on("follow_back_request", (data) => {
+			const notification: Notification = {
+				id: `follow_back_request_${data.requesterId}_${Date.now()}`,
+				senderId: data.requesterId,
+				senderName: data.requesterName,
+				senderImageUrl: data.requesterImageUrl,
+				content: `${data.requesterName} wants to follow you back!`,
+				timestamp: new Date().toISOString(),
+				isRead: false,
+				type: 'follow_back_request',
+			};
+			set((state) => ({
+				notifications: [notification, ...state.notifications],
+				unreadNotificationsCount: state.unreadNotificationsCount + 1,
+			}));
+			get().fetchUsers();
+		});
 
-				// Refetch users to update follow status
-				get().fetchUsers();
-			});
+		socket.on("follow_back_available", (data) => {
+			const notification: Notification = {
+				id: `follow_back_available_${data.userId}_${Date.now()}`,
+				senderId: data.userId,
+				senderName: data.userName,
+				senderImageUrl: data.userImageUrl,
+				content: `${data.userName} accepted your follow request. Follow back?`,
+				timestamp: new Date().toISOString(),
+				isRead: false,
+				type: 'follow_back_request',
+			};
+			set((state) => ({
+				notifications: [notification, ...state.notifications],
+				unreadNotificationsCount: state.unreadNotificationsCount + 1,
+			}));
+		});
 
-			socket.on("follow_back_request", (data) => {
-				console.log('Received follow_back_request:', data);
-				const notification: Notification = {
-					id: `follow_back_request_${data.requesterId}_${Date.now()}`,
-					senderId: data.requesterId,
-					senderName: data.requesterName,
-					senderImageUrl: data.requesterImageUrl,
-					content: `${data.requesterName} wants to follow you back!`,
-					timestamp: new Date().toISOString(),
-					isRead: false,
-					type: 'follow_back_request',
-				};
-
-				set((state) => ({
-					notifications: [notification, ...state.notifications],
-					unreadNotificationsCount: state.unreadNotificationsCount + 1,
-				}));
-
-				// Refetch users to update follow status
-				get().fetchUsers();
-			});
-
-			socket.on("follow_back_available", (data) => {
-				console.log('Received follow_back_available:', data);
-				const notification: Notification = {
-					id: `follow_back_available_${data.userId}_${Date.now()}`,
-					senderId: data.userId,
-					senderName: data.userName,
-					senderImageUrl: data.userImageUrl,
-					content: `${data.userName} accepted your follow request. Follow back?`,
-					timestamp: new Date().toISOString(),
-					isRead: false,
-					type: 'follow_back_request',
-				};
-
-				set((state) => ({
-					notifications: [notification, ...state.notifications],
-					unreadNotificationsCount: state.unreadNotificationsCount + 1,
-				}));
-			});
-
-			set({ isConnected: true });
-		}
+		set({ isConnected: true });
 	},
 
 	disconnectSocket: () => {
