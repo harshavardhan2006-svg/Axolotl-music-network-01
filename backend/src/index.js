@@ -37,8 +37,7 @@ const io = new SocketIOServer(httpServer, {
 	cors: {
 		origin: [
 			"http://localhost:3000",
-			"https://axolotl-music-network.vercel.app",
-			"https://*.vercel.app"
+			"https://axolotl-music-network-01.vercel.app"
 		],
 		credentials: true,
 	},
@@ -71,8 +70,7 @@ app.use(
 		origin: [
 			"http://localhost:3000", 
 			"http://localhost:3001",
-			"https://axolotl-music-network.vercel.app",
-			"https://*.vercel.app"
+			"https://axolotl-music-network-01.vercel.app"
 		],
 		credentials: true,
 	})
